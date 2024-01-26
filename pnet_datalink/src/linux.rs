@@ -65,6 +65,9 @@ pub struct Config {
 
     /// Promiscuous mode.
     pub promiscuous: bool,
+
+    /// Socket. Optional, in case you want to do setsockopts beforehand
+    pub sockfd: i32,
 }
 
 impl<'a> From<&'a super::Config> for Config {
@@ -77,6 +80,7 @@ impl<'a> From<&'a super::Config> for Config {
             write_timeout: config.write_timeout,
             fanout: config.linux_fanout,
             promiscuous: config.promiscuous,
+            sockfd: config.sockfd,
         }
     }
 }
@@ -91,6 +95,7 @@ impl Default for Config {
             channel_type: super::ChannelType::Layer2,
             fanout: None,
             promiscuous: true,
+            sockfd: -1,
         }
     }
 }
@@ -103,9 +108,14 @@ pub fn channel(network_interface: &NetworkInterface, config: Config) -> io::Resu
         super::ChannelType::Layer2 => (libc::SOCK_RAW, eth_p_all),
         super::ChannelType::Layer3(proto) => (libc::SOCK_DGRAM, proto),
     };
-    let socket = unsafe { libc::socket(libc::AF_PACKET, typ, proto.to_be() as i32) };
-    if socket == -1 {
-        return Err(io::Error::last_os_error());
+    let socket;
+    if config.sockfd < 0 {
+        socket = unsafe { libc::socket(libc::AF_PACKET, typ, proto.to_be() as i32) };
+        if socket == -1 {
+            return Err(io::Error::last_os_error());
+        }
+    } else {
+        socket = config.sockfd;
     }
     let mut addr: libc::sockaddr_storage = unsafe { mem::zeroed() };
     let len = network_addr_to_sockaddr(network_interface, &mut addr, proto as i32);
@@ -327,7 +337,7 @@ impl DataLinkSender for DataLinkSenderImpl {
 }
 
 struct DataLinkReceiverImpl {
-    socket: Arc<pnet_sys::FileDesc>,
+    pub socket: Arc<pnet_sys::FileDesc>,
     fd_set: libc::fd_set,
     read_buffer: Vec<u8>,
     _channel_type: super::ChannelType,

@@ -154,6 +154,9 @@ pub struct Config {
     pub linux_fanout: Option<FanoutOption>,
 
     pub promiscuous: bool,
+
+    /// Socket. Optional, in case you want to do setsockopts beforehand
+    pub sockfd: i32,
 }
 
 impl Default for Config {
@@ -167,6 +170,7 @@ impl Default for Config {
             bpf_fd_attempts: 1000,
             linux_fanout: None,
             promiscuous: true,
+            sockfd: -1,
         }
     }
 }
